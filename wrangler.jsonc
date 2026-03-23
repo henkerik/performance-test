@@ -4,7 +4,7 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "frosty-darkness-7db3",
+	"name": "morning-mountain-5012",
 	"main": "src/index.js",
 	"compatibility_date": "2026-03-10",
 	"observability": {
