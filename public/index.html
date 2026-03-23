@@ -67,39 +67,40 @@
 
     const startTime = performance.now();
     let completed = 0;
+    let nextIndex = 0;
 
-    async function processBatch(startIdx) {
-      const batch = urls.slice(startIdx, startIdx + maxParallel);
+    async function worker() {
+      while (true) {
+        const currentIndex = nextIndex++;
+        if (currentIndex >= urls.length) return;
 
-      await Promise.all(
-        batch.map(async (url, idx) => {
-          const globalIdx = startIdx + idx;
-          try {
-            const res = await fetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ message: `Request #${globalIdx}` })
-            });
+        const url = urls[currentIndex];
 
-            const json = await res.json();
-            completed++;
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: `Request #${currentIndex}` })
+          });
 
-            if (completed % 50 === 0) {
-              statusEl.textContent = `Completed ${completed} / ${totalRequests}`;
-            }
+          const json = await res.json();
+          completed++;
 
-            logEl.textContent += `#${globalIdx} ✅ ${url} (subdomain: ${json.subdomain})\n`;
-          } catch (err) {
-            completed++;
-            logEl.textContent += `#${globalIdx} ❌ ${url} (${err.message})\n`;
+          if (completed % 50 === 0) {
+            statusEl.textContent = `Completed ${completed} / ${totalRequests}`;
           }
-        })
-      );
+
+          logEl.textContent += `#${currentIndex} ✅ ${url} (subdomain: ${json.subdomain})\n`;
+        } catch (err) {
+          completed++;
+          logEl.textContent += `#${currentIndex} ❌ ${url} (${err.message})\n`;
+        }
+      }
     }
 
-    for (let i = 0; i < totalRequests; i += maxParallel) {
-      await processBatch(i);
-    }
+    const workers = Array.from({ length: maxParallel }, () => worker());
+
+    await Promise.all(workers);
 
     const endTime = performance.now();
     statusEl.textContent = `All ${totalRequests} requests completed in ${(endTime - startTime).toFixed(2)} ms`;
