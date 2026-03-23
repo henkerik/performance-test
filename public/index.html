@@ -2,15 +2,38 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>1600 Parallel Requests Test</title>
+  <title>Parallel Requests Test</title>
   <style>
     body { font-family: sans-serif; padding: 20px; }
     #log { white-space: pre-wrap; max-height: 400px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; }
-    #startBtn { padding: 10px 20px; font-size: 16px; }
+    #startBtn { padding: 10px 20px; font-size: 16px; margin-top: 10px; }
+    .controls { margin-bottom: 15px; }
+    .controls label { display: block; margin-top: 8px; }
+    .controls input { padding: 5px; width: 120px; }
   </style>
 </head>
 <body>
-  <h1>1600 Parallel Requests Test</h1>
+  <h1>Parallel Requests Test</h1>
+
+  <div class="controls">
+    <label>
+      Total Requests:
+      <input id="totalRequests" type="number" value="1600">
+    </label>
+    <label>
+      Batch Size (max parallel):
+      <input id="batchSize" type="number" value="200">
+    </label>
+    <label>
+      Base Delay (ms):
+      <input id="baseDelay" type="number" value="200">
+    </label>
+    <label>
+      Max Jitter (ms):
+      <input id="maxJitter" type="number" value="100">
+    </label>
+  </div>
+
   <button id="startBtn">Start Test</button>
   <p id="status"></p>
   <div id="log"></div>
@@ -20,18 +43,26 @@
   const statusEl = document.getElementById('status');
   const logEl = document.getElementById('log');
 
+  const totalRequestsInput = document.getElementById('totalRequests');
+  const batchSizeInput = document.getElementById('batchSize');
+  const baseDelayInput = document.getElementById('baseDelay');
+  const maxJitterInput = document.getElementById('maxJitter');
+
   startBtn.addEventListener('click', async () => {
     startBtn.disabled = true;
     logEl.textContent = '';
     statusEl.textContent = 'Starting requests...';
 
-    const totalRequests = 1600;
-    const maxParallel = 200; // Limit concurrent requests
-    const urls = Array.from({ length: totalRequests }, (_, i) => {
-      const jitter = Math.floor(Math.random() * 100); // 0–199 ms jitter
-      const delay = 150 + jitter;
+    const totalRequests = parseInt(totalRequestsInput.value, 10);
+    const maxParallel = parseInt(batchSizeInput.value, 10);
+    const baseDelay = parseInt(baseDelayInput.value, 10);
+    const maxJitter = parseInt(maxJitterInput.value, 10);
 
-      return `https://${i}-${Math.floor(Math.random() * 999999)}-test.henkerikvanderhoek.nl/performance-test?delay=${delay}`
+    const urls = Array.from({ length: totalRequests }, (_, i) => {
+      const jitter = Math.floor(Math.random() * maxJitter);
+      const delay = baseDelay + jitter;
+
+      return `https://${i}-${Math.floor(Math.random() * 999999)}-test.henkerikvanderhoek.nl/performance-test?delay=${delay}`;
     });
 
     const startTime = performance.now();
@@ -39,6 +70,7 @@
 
     async function processBatch(startIdx) {
       const batch = urls.slice(startIdx, startIdx + maxParallel);
+
       await Promise.all(
         batch.map(async (url, idx) => {
           const globalIdx = startIdx + idx;
@@ -48,11 +80,14 @@
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ message: `Request #${globalIdx}` })
             });
+
             const json = await res.json();
             completed++;
+
             if (completed % 50 === 0) {
               statusEl.textContent = `Completed ${completed} / ${totalRequests}`;
             }
+
             logEl.textContent += `#${globalIdx} ✅ ${url} (subdomain: ${json.subdomain})\n`;
           } catch (err) {
             completed++;
@@ -63,7 +98,7 @@
     }
 
     for (let i = 0; i < totalRequests; i += maxParallel) {
-      await processBatch(i); // Wait for current batch before starting next
+      await processBatch(i);
     }
 
     const endTime = performance.now();
